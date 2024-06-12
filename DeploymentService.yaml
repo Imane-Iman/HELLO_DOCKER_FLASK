@@ -1,0 +1,56 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = 'flask_api:latest'
+        DOCKER_REGISTRY = 'your-docker-registry-url'
+        KUBERNETES_NAMESPACE = 'default'
+        KUBERNETES_DEPLOYMENT_NAME = 'flask-api-deployment'
+        KUBERNETES_CLUSTER_CREDENTIALS = 'your-kubeconfig-credentials'
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git 'https://github.com/Imane-Iman/HELLO_DOCKER_FLASK.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build(DOCKER_IMAGE)
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry(DOCKER_REGISTRY) {
+                        docker.image(DOCKER_IMAGE).push()
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withKubeConfig(credentialsId: KUBERNETES_CLUSTER_CREDENTIALS) {
+                    script {
+                        sh """
+                        kubectl apply -f flask_api.yaml
+                        kubectl rollout restart deployment ${KUBERNETES_DEPLOYMENT_NAME} -n ${KUBERNETES_NAMESPACE}
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
